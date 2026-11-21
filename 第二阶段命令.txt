@@ -1,0 +1,45 @@
+═══ SBE1V1K 第二阶段命令 v2.0 (自动备份版) ═══
+(本文件在内存系统上线后由工具自动生成最新版; 此为离线备用)
+
+【块1 · 自动备份】ssh窗口整段粘贴(纯读取, 零风险):
+mkdir -p /tmp/bak && cd /tmp/bak
+dd if=/dev/mmcblk0 of=mmc-head-32M.bin bs=1M count=32
+fw_printenv > uboot-env.txt
+cat /proc/partitions > partitions.txt
+for p in /dev/mmcblk0p*; do s=$(cat /sys/block/mmcblk0/${p##*/}/size 2>/dev/null); [ -n "$s" ] && [ "$s" -lt 65536 ] && dd if=$p of=part-${p##*/}.bin; done
+sha256sum * > sha256.txt && tar czf /tmp/sbe1v1k-backup.tar.gz -C /tmp/bak .
+tftp -p -l /tmp/sbe1v1k-backup.tar.gz -r sbe1v1k-backup.tar.gz 192.168.1.2
+
+→ 救砖包自动保存到 刷机助手\backup\ 目录, 请另存U盘/网盘!
+→ 备份含: GPT+引导区32MB / U-Boot环境 / 全部小分区(含0:ART校准)
+
+【块2 · 写引导 + 刷固件】(确认块1回传成功后再执行):
+fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M'
+fw_setenv do_boot 'mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000'
+fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000'
+fw_printenv bootargs bootcmd do_boot
+tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2
+sha256sum /tmp/su.bin
+sysupgrade -T /tmp/su.bin && sysupgrade -n -v /tmp/su.bin
+
+→ sha256sum 输出必须与刷机助手窗口的电脑侧SHA256一致!
+→ 报 Image check failed 时改用: sysupgrade -F -n -v /tmp/su.bin
+→ 之后等150~200秒 → http://192.168.1.1 完成
+
+【块3 · 救砖/恢复原厂】(仅紧急时用! 先把备份tar.gz拷入tftp-root\再走第一步):
+tftp -g -r sbe1v1k-backup.tar.gz -l /tmp/restore.tar.gz 192.168.1.2
+mkdir -p /tmp/restore && tar xzf /tmp/restore.tar.gz -C /tmp/restore
+cd /tmp/restore
+dd if=mmc-head-32M.bin of=/dev/mmcblk0 bs=1M count=32
+for f in part-mmcblk0p*.bin; do dd if=$f of=/dev/${f#part-}; done
+sync
+
+──────────────────────────────
+附录: tftp 不可用时的手动 scp 方案(电脑cmd执行, 密码回车):
+  备份回传(路由器执行 tar 打包后):
+    scp root@192.168.1.1:/tmp/sbe1v1k-backup.tar.gz backup\
+  固件上传:
+    scp "firmware\固件名.bin" root@192.168.1.1:/tmp/su.bin
+──────────────────────────────
+日常升级(以后不用本工具):
+LuCI → 系统 → 备份/刷写固件 → 上传新 sysupgrade → 不保留配置 → 刷写

@@ -1,0 +1,9 @@
+backup/*.tar.gz
+backup/*su.sha
+网卡备份.json
+firmware/*.bin
+tftp-root/fw.bin
+tftp-root/*.sha
+*.zip
+dl*.log
+sha256sums*
