@@ -1,4 +1,4 @@
-═══ SBE1V1K 第二阶段命令 v2.0 (自动备份版) ═══
+═══ SBE1V1K 第二阶段命令 v2.1 (自动备份版) ═══
 (本文件在内存系统上线后由工具自动生成最新版; 此为离线备用)
 
 【块1 · 自动备份】ssh窗口整段粘贴(纯读取, 零风险):
@@ -13,9 +13,9 @@ tftp -p -l /tmp/sbe1v1k-backup.tar.gz -r sbe1v1k-backup.tar.gz 192.168.1.2
 → 救砖包自动保存到 刷机助手\backup\ 目录, 请另存U盘/网盘!
 → 备份含: GPT+引导区32MB / U-Boot环境 / 全部小分区(含0:ART校准)
 
-【块2 · 写引导 + 刷固件】(确认块1回传成功后再执行):
+【块2 · 写引导 + 刷固件】(v2.1: 补官方 aq_load_fw 0x0 —— 原厂引导加载 10G PHY 固件，官方安装指令同款)(确认块1回传成功后再执行):
 fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M'
-fw_setenv do_boot 'mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000'
+fw_setenv do_boot 'aq_load_fw 0x0; mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000'
 fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000'
 fw_printenv bootargs bootcmd do_boot
 tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2
