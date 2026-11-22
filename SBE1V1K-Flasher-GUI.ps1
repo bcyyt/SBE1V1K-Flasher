@@ -1,5 +1,5 @@
-# ============================================================
-#  SBE1V1K (Askey RTQ7300T) 免拆刷机助手  v3.0 图形界面版
+﻿# ============================================================
+#  SBE1V1K (Askey RTQ7300T) 免拆刷机助手  v3.0.2 图形界面版
 #  界面: WinForms (Windows 自带, 零依赖)
 #  架构: 引擎跑后台 Runspace(网络全套), UI 线程只做显示与
 #        剪贴板/键盘注入/浏览器动作 —— 双向经同步队列通信
@@ -33,7 +33,7 @@ $shared = [hashtable]::Synchronized(@{
     Q = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
 })
 # 固件自动探测(firmware\*.bin)
-$fwAuto = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+$fwAuto = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Sort-Object { $_.Name -notmatch 'sysupgrade' } | Select-Object -First 1
 if ($fwAuto) { $shared.FirmwarePath = $fwAuto.FullName }
 
 # ---------- 2. 引擎(后台 Runspace 执行) ----------
@@ -47,7 +47,7 @@ $NetBackup  = Join-Path $BaseDir "网卡备份.json"
 $nicName = $shared.NicName
 
 $Block1Line = 'mkdir -p /tmp/bak && cd /tmp/bak && dd if=/dev/mmcblk0 of=mmc-head-32M.bin bs=1M count=32 && fw_printenv > uboot-env.txt && cat /proc/partitions > partitions.txt && for p in /dev/mmcblk0p*; do s=$(cat /sys/block/mmcblk0/${p##*/}/size 2>/dev/null); [ -n "$s" ] && [ "$s" -lt 65536 ] && dd if=$p of=part-${p##*/}.bin; done && sha256sum * > sha256.txt && tar czf /tmp/sbe1v1k-backup.tar.gz -C /tmp/bak . && tftp -p -l /tmp/sbe1v1k-backup.tar.gz -r sbe1v1k-backup.tar.gz 192.168.1.2 && echo BACKUP-OK'
-$Block2aLine = "fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT"
+$Block2aLine = "fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'aq_load_fw 0x0; mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT"
 $Block2bLine = 'sysupgrade -T /tmp/su.bin && sysupgrade -n -v /tmp/su.bin && echo FLASH-DONE'
 $shared.Blocks = @{ b1 = $Block1Line; b2a = $Block2aLine; b2b = $Block2bLine }
 
@@ -187,10 +187,11 @@ try {
     $fwPath = $null
     if ($shared.FirmwarePath -and (Test-Path $shared.FirmwarePath)) { $fwPath = $shared.FirmwarePath }
     else {
-        $fwAuto = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+        $fwAuto = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Sort-Object { $_.Name -notmatch 'sysupgrade' } | Select-Object -First 1
         if ($fwAuto) { $fwPath = $fwAuto.FullName }
     }
     if ($AutoMode -eq 'auto' -and -not $fwPath) {
+if ($fwAuto -and $fwAuto.Name -notmatch 'sysupgrade') { Write-Host "[警告] 识别到固件 $($fwAuto.Name) 不含 sysupgrade 字样 —— 请确认是 sysupgrade 镜像而非 factory！" }
         throw "firmware\ 没有固件! 先在界面选择 sysupgrade 固件再开始"
     }
     if ($fwPath) {
@@ -316,7 +317,7 @@ try {
                 } else {
                     $copied = $false
                     if ($fname -eq 'fw.bin' -and -not $fwPath) {
-                        $fwNow = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+                        $fwNow = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Sort-Object { $_.Name -notmatch 'sysupgrade' } | Select-Object -First 1
                         if ($shared.FirmwarePath -and (Test-Path $shared.FirmwarePath)) { $fwNow = Get-Item $shared.FirmwarePath }
                         if ($fwNow) {
                             Copy-Item $fwNow.FullName $fpath -Force
@@ -443,7 +444,7 @@ try {
 
 # ---------- 3. GUI ----------
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'SBE1V1K 免拆刷机助手 v3.0'
+$form.Text = 'SBE1V1K 免拆刷机助手 v3.0.2'
 $form.Size = New-Object System.Drawing.Size(760, 640)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedSingle'
@@ -573,7 +574,7 @@ $btnStart.Add_Click({
     $shared.Mode = if ($rbAuto.Checked) { 'auto' } elseif ($rbBackup.Checked) { 'backup' } else { 'manual' }
     # 重新扫描固件目录(用户可能启动后才放固件)
     if (-not $shared.FirmwarePath -or -not (Test-Path $shared.FirmwarePath)) {
-        $fwRe = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+        $fwRe = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Sort-Object { $_.Name -notmatch 'sysupgrade' } | Select-Object -First 1
         if ($fwRe) { $shared.FirmwarePath = $fwRe.FullName; $lblFw.Text = "已选: $($fwRe.Name)" }
     }
     if ($shared.Mode -eq 'auto' -and -not $shared.FirmwarePath) {
