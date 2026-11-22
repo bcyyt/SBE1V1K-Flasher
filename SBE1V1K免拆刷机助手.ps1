@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  SBE1V1K (Askey RTQ7300T) 免拆刷机助手  v2.1 全自动版
 #  流程: 按住Reset上电 → DHCP option43="askey" 握手 → TFTP送
 #        启动器+initramfs → 内存系统上线 → 自动备份(回传救砖包)
@@ -22,7 +22,7 @@ $Phase2File = Join-Path $BaseDir "第二阶段命令.txt"
 
 # 路由器侧执行块(单行, ASCII, 供自动注入与手动粘贴两用)
 $Block1Line = 'mkdir -p /tmp/bak && cd /tmp/bak && dd if=/dev/mmcblk0 of=mmc-head-32M.bin bs=1M count=32 && fw_printenv > uboot-env.txt && cat /proc/partitions > partitions.txt && for p in /dev/mmcblk0p*; do s=$(cat /sys/block/mmcblk0/${p##*/}/size 2>/dev/null); [ -n "$s" ] && [ "$s" -lt 65536 ] && dd if=$p of=part-${p##*/}.bin; done && sha256sum * > sha256.txt && tar czf /tmp/sbe1v1k-backup.tar.gz -C /tmp/bak . && tftp -p -l /tmp/sbe1v1k-backup.tar.gz -r sbe1v1k-backup.tar.gz 192.168.1.2 && echo BACKUP-OK'
-$Block2aLine = "fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT"
+$Block2aLine = "fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'aq_load_fw 0x0; mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT"
 $Block2bLine = 'sysupgrade -T /tmp/su.bin && sysupgrade -n -v /tmp/su.bin && echo FLASH-DONE'
 
 function W-IP([string]$ip) { [byte[]]($ip.Split('.') | ForEach-Object { [byte][int]$_ }) }
@@ -398,7 +398,7 @@ try {
                 } else {
                     $copied = $false
                     if ($fname -eq "fw.bin") {
-                        $fwNow = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Select-Object -First 1
+                        $fwNow = Get-ChildItem (Join-Path $BaseDir "firmware") -Filter *.bin -ErrorAction SilentlyContinue | Sort-Object { $_.Name -notmatch 'sysupgrade' } | Select-Object -First 1
                         if ($fwNow) {
                             Copy-Item $fwNow.FullName $fpath -Force
                             $fwHash = (Get-FileHash $fpath -Algorithm SHA256).Hash
@@ -444,7 +444,7 @@ try {
 mkdir -p /tmp/bak && cd /tmp/bak && dd if=/dev/mmcblk0 of=mmc-head-32M.bin bs=1M count=32 && fw_printenv > uboot-env.txt && cat /proc/partitions > partitions.txt && for p in /dev/mmcblk0p*; do s=$(cat /sys/block/mmcblk0/${p##*/}/size 2>/dev/null); [ -n "$s" ] && [ "$s" -lt 65536 ] && dd if=$p of=part-${p##*/}.bin; done && sha256sum * > sha256.txt && tar czf /tmp/sbe1v1k-backup.tar.gz -C /tmp/bak . && tftp -p -l /tmp/sbe1v1k-backup.tar.gz -r sbe1v1k-backup.tar.gz 192.168.1.2 && echo BACKUP-OK
 
 【块2a · 写引导+拉固件+回传哈希】:
-fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT
+fw_setenv bootargs 'console=ttyMSM0,115200n8 rootwait root=/dev/mmcblk0p27 cma=256M' && fw_setenv do_boot 'aq_load_fw 0x0; mmc read 0x44000000 0x00014022 0x3800; bootm 0x44000000' && fw_setenv bootcmd 'sleep 3; run do_boot; echo EMMC-FAILED; setenv ipaddr 172.16.252.100; setenv serverip 172.16.252.252; tftpboot 0x80000000 initramfs.itb; bootm 0x80000000' && fw_printenv bootargs bootcmd do_boot && tftp -g -r fw.bin -l /tmp/su.bin 192.168.1.2 && sha256sum /tmp/su.bin > /tmp/su.sha && tftp -p -l /tmp/su.sha -r su.sha 192.168.1.2 && echo HASH-SENT
 
 【块2b · 正式刷写】(工具核对哈希一致后才应执行):
 sysupgrade -T /tmp/su.bin && sysupgrade -n -v /tmp/su.bin && echo FLASH-DONE
